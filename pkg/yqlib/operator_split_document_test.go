@@ -8,7 +8,7 @@ var splitDocOperatorScenarios = []expressionScenario{
 	{
 		description: "Split empty",
 		document:    ``,
-		expression:  `splitDoc`,
+		expression:  `split_doc`,
 		expected: []string{
 			"D0, P[], (!!null)::\n",
 		},
@@ -16,10 +16,20 @@ var splitDocOperatorScenarios = []expressionScenario{
 	{
 		description: "Split array",
 		document:    `[{a: cat}, {b: dog}]`,
-		expression:  `.[] | splitDoc`,
+		expression:  `.[] | split_doc`,
 		expected: []string{
 			"D0, P[0], (!!map)::{a: cat}\n",
 			"D1, P[1], (!!map)::{b: dog}\n",
+		},
+	},
+	{
+		description: "Split splat",
+		skipDoc:     true,
+		document:    `[{a: cat}, {b: dog}]`,
+		expression:  `.[] | split_doc[]`,
+		expected: []string{
+			"D0, P[0 a], (!!str)::cat\n",
+			"D1, P[1 b], (!!str)::dog\n",
 		},
 	},
 }
@@ -28,5 +38,5 @@ func TestSplitDocOperatorScenarios(t *testing.T) {
 	for _, tt := range splitDocOperatorScenarios {
 		testScenario(t, &tt)
 	}
-	documentScenarios(t, "split-into-documents", splitDocOperatorScenarios)
+	documentOperatorScenarios(t, "split-into-documents", splitDocOperatorScenarios)
 }

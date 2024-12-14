@@ -32,7 +32,7 @@ var lengthOperatorScenarios = []expressionScenario{
 	},
 	{
 		skipDoc:    true,
-		document:   `{a: key no exist}`,
+		document:   "# abc\n{a: key no exist}",
 		expression: `.b | length`,
 		expected: []string{
 			"D0, P[b], (!!int)::0\n",
@@ -62,5 +62,5 @@ func TestLengthOperatorScenarios(t *testing.T) {
 	for _, tt := range lengthOperatorScenarios {
 		testScenario(t, &tt)
 	}
-	documentScenarios(t, "length", lengthOperatorScenarios)
+	documentOperatorScenarios(t, "length", lengthOperatorScenarios)
 }

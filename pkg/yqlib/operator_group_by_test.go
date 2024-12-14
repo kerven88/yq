@@ -14,7 +14,17 @@ var groupByOperatorScenarios = []expressionScenario{
 		},
 	},
 	{
-		description: "Group by field, with nuls",
+		description: "Group splat",
+		skipDoc:     true,
+		document:    `[{foo: 1, bar: 10}, {foo: 3, bar: 100}, {foo: 1, bar: 1}]`,
+		expression:  `group_by(.foo)[]`,
+		expected: []string{
+			"D0, P[0], (!!seq)::- {foo: 1, bar: 10}\n- {foo: 1, bar: 1}\n",
+			"D0, P[1], (!!seq)::- {foo: 3, bar: 100}\n",
+		},
+	},
+	{
+		description: "Group by field, with nulls",
 		document:    `[{cat: dog}, {foo: 1, bar: 10}, {foo: 3, bar: 100}, {no: foo for you}, {foo: 1, bar: 1}]`,
 		expression:  `group_by(.foo)`,
 		expected: []string{
@@ -27,5 +37,5 @@ func TestGroupByOperatorScenarios(t *testing.T) {
 	for _, tt := range groupByOperatorScenarios {
 		testScenario(t, &tt)
 	}
-	documentScenarios(t, "group-by", groupByOperatorScenarios)
+	documentOperatorScenarios(t, "group-by", groupByOperatorScenarios)
 }

@@ -16,9 +16,9 @@ var hasOperatorScenarios = []expressionScenario{
 	{
 		skipDoc:    true,
 		document:   `a: hello`,
-		expression: `has(.b) as $c`,
+		expression: `has(.b) as $c | .`,
 		expected: []string{
-			"D0, P[], (doc)::a: hello\n",
+			"D0, P[], (!!map)::a: hello\n",
 		},
 	},
 	{
@@ -77,5 +77,5 @@ func TestHasOperatorScenarios(t *testing.T) {
 	for _, tt := range hasOperatorScenarios {
 		testScenario(t, &tt)
 	}
-	documentScenarios(t, "has", hasOperatorScenarios)
+	documentOperatorScenarios(t, "has", hasOperatorScenarios)
 }
