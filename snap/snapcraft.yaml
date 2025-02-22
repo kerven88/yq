@@ -1,22 +1,29 @@
 name: yq
-version: '4.15.1'
-summary: A lightweight and portable command-line YAML processor
+version: 'v4.45.1'
+summary: A lightweight and portable command-line data file processor
 description: |
-  The aim of the project is to be the jq or sed of yaml files.
-
-base: core18
+  `yq` uses [jq](https://github.com/stedolan/jq) like syntax but works with yaml, json, xml, csv, properties and TOML files.
+base: core22
 grade: stable # devel|stable. must be 'stable' to release into candidate/stable channels
 confinement: strict
-
+architectures:
+  - build-on: s390x
+  - build-on: ppc64el
+  - build-on: arm64
+  - build-on: armhf
+  - build-on: amd64
+  - build-on: i386
+  - build-on: riscv64
 apps:
   yq:
-    command: yq
-    plugs: [home]
-
+    command: bin/yq
+    plugs: [home, removable-media]
 parts:
   yq:
     plugin: go
-    go-channel: 1.15/stable
-    source: .
-    source-type: git
-    go-importpath: github.com/mikefarah/yq
+    build-environment:
+      - CGO_ENABLED: 0
+    source: https://github.com/mikefarah/yq.git
+    source-tag: v4.45.1
+    build-snaps:
+      - go/latest/stable

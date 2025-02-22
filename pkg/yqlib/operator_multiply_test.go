@@ -1,6 +1,8 @@
 package yqlib
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -29,22 +31,32 @@ var mergeArrayWithAnchors = `sample:
 - <<: *a
 `
 
-var mergeArraysObjectKeysText = `There are several parts of the complex expression. 
-The first part is doing the hard work, it creates a map from the arrays keyed by '.a', so that there are no duplicates. 
-Then there's another reduce that converts that map back to an array.
-Finally, we set the result of the merged array back into the first doc.
+var mergeArraysObjectKeysText = `
+This is a fairly complex expression - you can use it as is by providing the environment variables as seen in the example below.
 
-To use this, you will need to update '.myArray' to be the expression to your array (e.g. .my.array), and '.a' to be the key field of your array (e.g. '.name')
+It merges in the array provided in the second file into the first - matching on equal keys.
+
+Explanation:
+
+The approach, at a high level, is to reduce into a merged map (keyed by the unique key)
+and then convert that back into an array.
+
+First the expression will create a map from the arrays keyed by the idPath, the unique field we want to merge by.
+The reduce operator is merging '({}; . * $item )', so array elements with the matching key will be merged together.
+
+Next, we convert the map back to an array, using reduce again, concatenating all the map values together.
+
+Finally, we set the result of the merged array back into the first doc.
 
 Thanks Kev from [stackoverflow](https://stackoverflow.com/a/70109529/1168223)
 `
 
 var mergeExpression = `
 (
-  ((.myArray[] | {.a: .}) as $item ireduce ({}; . * $item )) as $uniqueMap
+  (( (eval(strenv(originalPath)) + eval(strenv(otherPath)))  | .[] | {(eval(strenv(idPath))):  .}) as $item ireduce ({}; . * $item )) as $uniqueMap
   | ( $uniqueMap  | to_entries | .[]) as $item ireduce([]; . + $item.value)
 ) as $mergedArray
-| select(fi == 0) | .myArray = $mergedArray
+| select(fi == 0) | (eval(strenv(originalPath))) = $mergedArray
 `
 
 var docWithHeader = `# here
@@ -85,11 +97,20 @@ var multiplyOperatorScenarios = []expressionScenario{
 	},
 	{
 		skipDoc:    true,
+		document:   `[[c], [b]]`,
+		expression: `.[] | . *+ ["a"]`,
+		expected: []string{
+			"D0, P[0], (!!seq)::[c, a]\n",
+			"D0, P[1], (!!seq)::[b, a]\n",
+		},
+	},
+	{
+		skipDoc:    true,
 		document:   docWithHeader,
 		document2:  docNoComments,
 		expression: `select(fi == 0) * select(fi == 1)`,
 		expected: []string{
-			"D0, P[], (!!map)::# here\na: apple\nb: banana\n",
+			"D0, P[], (!!map)::# here\n\na: apple\nb: banana\n",
 		},
 	},
 	{
@@ -107,7 +128,7 @@ var multiplyOperatorScenarios = []expressionScenario{
 		document2:  docWithHeader,
 		expression: `select(fi == 0) * select(fi == 1)`,
 		expected: []string{
-			"D0, P[], (!!map)::# here\nb: banana\na: apple\n",
+			"D0, P[], (!!map)::# here\n\nb: banana\na: apple\n",
 		},
 	},
 	{
@@ -125,7 +146,7 @@ var multiplyOperatorScenarios = []expressionScenario{
 		document2:  docNoComments,
 		expression: `select(fi == 0) * select(fi == 1)`,
 		expected: []string{
-			"D0, P[], (!!map)::a: apple\nb: banana\n\n# footer\n",
+			"D0, P[], (!!map)::a: apple\nb: banana\n# footer\n",
 		},
 	},
 	{
@@ -138,19 +159,70 @@ var multiplyOperatorScenarios = []expressionScenario{
 		},
 	},
 	{
-		skipDoc:    true,
-		document:   docNoComments,
-		document2:  docWithFooter,
-		expression: `select(fi == 0) * select(fi == 1)`,
+		description: "doc 2 has footer",
+		skipDoc:     true,
+		document:    docNoComments,
+		document2:   docWithFooter,
+		expression:  `select(fi == 0) * select(fi == 1)`,
 		expected: []string{
-			"D0, P[], (!!map)::b: banana\na: apple\n\n# footer\n",
+			"D0, P[], (!!map)::b: banana\na: apple\n# footer\n",
 		},
 	},
 	{
 		description: "Multiply integers",
-		expression:  `3 * 4`,
+		document:    "a: 3\nb: 4",
+		expression:  `.a *= .b`,
 		expected: []string{
-			"D0, P[], (!!int)::12\n",
+			"D0, P[], (!!map)::a: 12\nb: 4\n",
+		},
+	},
+	{
+		description: "Multiply string node X int",
+		document:    docNoComments,
+		expression:  ".b * 4",
+		expected: []string{
+			fmt.Sprintf("D0, P[b], (!!str)::%s\n", strings.Repeat("banana", 4)),
+		},
+	},
+	{
+		description: "Multiply int X string node",
+		document:    docNoComments,
+		expression:  "4 * .b",
+		expected: []string{
+			fmt.Sprintf("D0, P[], (!!str)::%s\n", strings.Repeat("banana", 4)),
+		},
+	},
+	{
+		description: "Multiply string X int node",
+		document: `n: 4
+`,
+		expression: `"banana" * .n`,
+		expected: []string{
+			fmt.Sprintf("D0, P[], (!!str)::%s\n", strings.Repeat("banana", 4)),
+		},
+	},
+	{
+		description:   "Multiply string X by negative int",
+		skipDoc:       true,
+		document:      `n: -4`,
+		expression:    `"banana" * .n`,
+		expectedError: "Cannot repeat string by a negative number (-4)",
+	},
+	{
+		description: "Multiply string X by more than 100 million",
+		// very large string.repeats causes a panic
+		skipDoc:       true,
+		document:      `n: 100000001`,
+		expression:    `"banana" * .n`,
+		expectedError: "Cannot repeat string by more than 100 million (100000001)",
+	},
+	{
+		description: "Multiply int node X string",
+		document: `n: 4
+`,
+		expression: `.n * "banana"`,
+		expected: []string{
+			fmt.Sprintf("D0, P[n], (!!str)::%s\n", strings.Repeat("banana", 4)),
 		},
 	},
 	{
@@ -219,7 +291,7 @@ var multiplyOperatorScenarios = []expressionScenario{
 		document:   `{a: &a { b: &b { c: &c cat } } }`,
 		expression: `{} * .`,
 		expected: []string{
-			"D0, P[], (!!map)::{a: &a {b: &b {c: &c cat}}}\n",
+			"D0, P[], (!!map)::a: &a\n    b: &b\n        c: &c cat\n",
 		},
 	},
 	{
@@ -340,6 +412,14 @@ var multiplyOperatorScenarios = []expressionScenario{
 		},
 	},
 	{
+		description: "Merge, only new fields",
+		document:    `{a: {thing: one, cat: frog}, b: {missing: two, thing: two}}`,
+		expression:  `.a *n .b`,
+		expected: []string{
+			"D0, P[a], (!!map)::{thing: one, cat: frog, missing: two}\n",
+		},
+	},
+	{
 		skipDoc:    true,
 		document:   `{a: [{thing: one}], b: [{missing: two, thing: two}]}`,
 		expression: `.a *?d .b`,
@@ -349,10 +429,18 @@ var multiplyOperatorScenarios = []expressionScenario{
 	},
 	{
 		skipDoc:    true,
+		document:   `{a: [{thing: one}], b: [{missing: two, thing: two}]}`,
+		expression: `.a *nd .b`,
+		expected: []string{
+			"D0, P[a], (!!seq)::[{thing: one, missing: two}]\n",
+		},
+	},
+	{
+		skipDoc:    true,
 		document:   `{a: {array: [1]}, b: {}}`,
 		expression: `.b *+ .a`,
 		expected: []string{
-			"D0, P[b], (!!map)::{array: [1]}\n",
+			"D0, P[b], (!!map)::array: [1]\n",
 		},
 	},
 	{
@@ -372,8 +460,18 @@ var multiplyOperatorScenarios = []expressionScenario{
 		},
 	},
 	{
+		description:    "Merge, only new fields, appending arrays",
+		subdescription: "Append (+) with (n) has no effect.",
+		skipDoc:        true,
+		document:       `{a: {thing: [1,2]}, b: {thing: [3,4], another: [1]}}`,
+		expression:     `.a *n+ .b`,
+		expected: []string{
+			"D0, P[a], (!!map)::{thing: [1, 2], another: [1]}\n",
+		},
+	},
+	{
 		description:    "Merge, deeply merging arrays",
-		subdescription: "Merging arrays deeply means arrays are merge like objects, with indexes as their key. In this case, we merge the first item in the array, and do nothing with the second.",
+		subdescription: "Merging arrays deeply means arrays are merged like objects, with indices as their key. In this case, we merge the first item in the array and do nothing with the second.",
 		document:       `{a: [{name: fred, age: 12}, {name: bob, age: 32}], b: [{name: fred, age: 34}]}`,
 		expression:     `.a *d .b`,
 		expected: []string{
@@ -381,13 +479,14 @@ var multiplyOperatorScenarios = []expressionScenario{
 		},
 	},
 	{
-		description:    "Merge arrays of objects together, matching on a key",
-		subdescription: mergeArraysObjectKeysText,
-		document:       `{myArray: [{a: apple, b: appleB}, {a: kiwi, b: kiwiB}, {a: banana, b: bananaB}], something: else}`,
-		document2:      `myArray: [{a: banana, c: bananaC}, {a: apple, b: appleB2}, {a: dingo, c: dingoC}]`,
-		expression:     mergeExpression,
+		description:          "Merge arrays of objects together, matching on a key",
+		subdescription:       mergeArraysObjectKeysText,
+		document:             `{myArray: [{a: apple, b: appleB}, {a: kiwi, b: kiwiB}, {a: banana, b: bananaB}], something: else}`,
+		document2:            `newArray: [{a: banana, c: bananaC}, {a: apple, b: appleB2}, {a: dingo, c: dingoC}]`,
+		environmentVariables: map[string]string{"originalPath": ".myArray", "otherPath": ".newArray", "idPath": ".a"},
+		expression:           mergeExpression,
 		expected: []string{
-			"D0, P[], (doc)::{myArray: [{a: apple, b: appleB2}, {a: kiwi, b: kiwiB}, {a: banana, b: bananaB, c: bananaC}, {a: dingo, c: dingoC}], something: else}\n",
+			"D0, P[], (!!map)::{myArray: [{a: apple, b: appleB2}, {a: kiwi, b: kiwiB}, {a: banana, b: bananaB, c: bananaC}, {a: dingo, c: dingoC}], something: else}\n",
 		},
 	},
 	{
@@ -430,11 +529,147 @@ var multiplyOperatorScenarios = []expressionScenario{
 			"D0, P[b], (!!map)::{name: dog, <<: *cat}\n",
 		},
 	},
+	{
+		description:    "Custom types: that are really numbers",
+		subdescription: "When custom tags are encountered, yq will try to decode the underlying type.",
+		document:       "a: !horse 2\nb: !goat 3",
+		expression:     ".a = .a * .b",
+		expected: []string{
+			"D0, P[], (!!map)::a: !horse 6\nb: !goat 3\n",
+		},
+	},
+	{
+		skipDoc:     true,
+		description: "Custom types: that are really numbers",
+		document:    "a: !horse 2.5\nb: !goat 3.5",
+		expression:  ".a = .a * .b",
+		expected: []string{
+			"D0, P[], (!!map)::a: !horse 8.75\nb: !goat 3.5\n",
+		},
+	},
+	{
+		skipDoc:     true,
+		description: "Custom types: that are really numbers",
+		document:    "a: 2\nb: !goat 3.5",
+		expression:  ".a = .a * .b",
+		expected: []string{
+			"D0, P[], (!!map)::a: !!float 7\nb: !goat 3.5\n",
+		},
+	},
+	{
+		skipDoc:     true,
+		description: "Custom types: that are really arrays",
+		document:    "a: !horse [1,2]\nb: !goat [3]",
+		expression:  ".a = .a * .b",
+		expected: []string{
+			"D0, P[], (!!map)::a: !horse [3]\nb: !goat [3]\n",
+		},
+	},
+	{
+		description:    "Custom types: that are really maps",
+		subdescription: "Custom tags will be maintained.",
+		document:       "a: !horse {cat: meow}\nb: !goat {dog: woof}",
+		expression:     ".a = .a * .b",
+		expected: []string{
+			"D0, P[], (!!map)::a: !horse {cat: meow, dog: woof}\nb: !goat {dog: woof}\n",
+		},
+	},
+	{
+		description:    "Custom types: clobber tags",
+		subdescription: "Use the `c` option to clobber custom tags. Note that the second tag is now used.",
+		document:       "a: !horse {cat: meow}\nb: !goat {dog: woof}",
+		expression:     ".a *=c .b",
+		expected: []string{
+			"D0, P[], (!!map)::a: !goat {cat: meow, dog: woof}\nb: !goat {dog: woof}\n",
+		},
+	},
+	{
+		skipDoc:        true,
+		description:    "Custom types: clobber tags - *=",
+		subdescription: "Use the `c` option to clobber custom tags - on both the `=` and `*` operator. Note that the second tag is now used.",
+		document:       "a: !horse {cat: meow}\nb: !goat {dog: woof}",
+		expression:     ".a =c .a *c .b",
+		expected: []string{
+			"D0, P[], (!!map)::a: !goat {cat: meow, dog: woof}\nb: !goat {dog: woof}\n",
+		},
+	},
+	{
+		skipDoc:        true,
+		description:    "Custom types: dont clobber tags - *=",
+		subdescription: "Use the `c` option to clobber custom tags - on both the `=` and `*` operator. Note that the second tag is now used.",
+		document:       "a: !horse {cat: meow}\nb: !goat {dog: woof}",
+		expression:     ".a *= .b",
+		expected: []string{
+			"D0, P[], (!!map)::a: !horse {cat: meow, dog: woof}\nb: !goat {dog: woof}\n",
+		},
+	},
+	{
+		skipDoc:     true,
+		description: "Custom types: that are really maps",
+		document:    "a: {cat: !horse meow}\nb: {cat: 5}",
+		expression:  ".a = .a * .b",
+		expected: []string{
+			"D0, P[], (!!map)::a: {cat: !horse 5}\nb: {cat: 5}\n",
+		},
+	},
+	{
+		skipDoc:     true,
+		description: "Relative merge, new fields only",
+		document:    "a: {a: original}\n",
+		expression:  `.a *=n load("../../examples/thing.yml")`,
+		expected: []string{
+			"D0, P[], (!!map)::a: {a: original, b: cool.}\n",
+		},
+	},
+	{
+		skipDoc:     true,
+		description: "Relative merge",
+		document:    "a: {a: original}\n",
+		expression:  `.a *= load("../../examples/thing.yml")`,
+		expected: []string{
+			"D0, P[], (!!map)::a: {a: apple is included, b: cool.}\n",
+		},
+	},
+	{
+		description: "Merging a null with a map",
+		expression:  `null * {"some": "thing"}`,
+		expected: []string{
+			"D0, P[], (!!map)::some: thing\n",
+		},
+	},
+	{
+		description: "Merging a map with null",
+		expression:  `{"some": "thing"} * null`,
+		expected: []string{
+			"D0, P[], (!!map)::some: thing\n",
+		},
+	},
+	{
+		description: "Merging a null with an array",
+		expression:  `null * ["some"]`,
+		expected: []string{
+			"D0, P[], (!!seq)::- some\n",
+		},
+	},
+	{
+		description: "Merging an array with null",
+		expression:  `["some"] * null`,
+		expected: []string{
+			"D0, P[], (!!seq)::- some\n",
+		},
+	},
+	{
+		skipDoc:    true,
+		expression: `null * null`,
+		expected: []string{
+			"D0, P[], (!!null)::null\n",
+		},
+	},
 }
 
 func TestMultiplyOperatorScenarios(t *testing.T) {
 	for _, tt := range multiplyOperatorScenarios {
 		testScenario(t, &tt)
 	}
-	documentScenarios(t, "multiply-merge", multiplyOperatorScenarios)
+	documentOperatorScenarios(t, "multiply-merge", multiplyOperatorScenarios)
 }

@@ -6,7 +6,7 @@ import (
 
 type writeInPlaceHandler interface {
 	CreateTempFile() (*os.File, error)
-	FinishWriteInPlace(evaluatedSuccessfully bool)
+	FinishWriteInPlace(evaluatedSuccessfully bool) error
 }
 
 type writeInPlaceHandlerImpl struct {
@@ -34,18 +34,23 @@ func (w *writeInPlaceHandlerImpl) CreateTempFile() (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if err = changeOwner(info, file); err != nil {
+		return nil, err
+	}
 	log.Debug("WriteInPlaceHandler: writing to tempfile: %v", file.Name())
 	w.tempFile = file
 	return file, err
 }
 
-func (w *writeInPlaceHandlerImpl) FinishWriteInPlace(evaluatedSuccessfully bool) {
-	log.Debug("Going to write-inplace, evaluatedSuccessfully=%v, target=%v", evaluatedSuccessfully, w.inputFilename)
+func (w *writeInPlaceHandlerImpl) FinishWriteInPlace(evaluatedSuccessfully bool) error {
+	log.Debug("Going to write in place, evaluatedSuccessfully=%v, target=%v", evaluatedSuccessfully, w.inputFilename)
 	safelyCloseFile(w.tempFile)
 	if evaluatedSuccessfully {
 		log.Debug("Moving temp file to target")
-		safelyRenameFile(w.tempFile.Name(), w.inputFilename)
-	} else {
-		tryRemoveFile(w.tempFile.Name())
+		return tryRenameFile(w.tempFile.Name(), w.inputFilename)
 	}
+	tryRemoveTempFile(w.tempFile.Name())
+
+	return nil
 }

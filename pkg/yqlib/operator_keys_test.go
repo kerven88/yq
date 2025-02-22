@@ -4,6 +4,32 @@ import (
 	"testing"
 )
 
+var expectedIsKey = `D0, P[], (!!seq)::- p: ""
+  isKey: false
+  tag: '!!map'
+- p: a
+  isKey: true
+  tag: '!!str'
+- p: a
+  isKey: false
+  tag: '!!map'
+- p: a.b
+  isKey: true
+  tag: '!!str'
+- p: a.b
+  isKey: false
+  tag: '!!seq'
+- p: a.b.0
+  isKey: false
+  tag: '!!str'
+- p: a.c
+  isKey: true
+  tag: '!!str'
+- p: a.c
+  isKey: false
+  tag: '!!str'
+`
+
 var keysOperatorScenarios = []expressionScenario{
 	{
 		description: "Map keys",
@@ -11,6 +37,16 @@ var keysOperatorScenarios = []expressionScenario{
 		expression:  `keys`,
 		expected: []string{
 			"D0, P[], (!!seq)::- dog\n- cat\n",
+		},
+	},
+	{
+		description: "Map keys with splat",
+		skipDoc:     true,
+		document:    `{dog: woof, cat: meow}`,
+		expression:  `keys[]`,
+		expected: []string{
+			"D0, P[dog], (!!str)::dog\n",
+			"D0, P[cat], (!!str)::cat\n",
 		},
 	},
 	{
@@ -64,7 +100,7 @@ var keysOperatorScenarios = []expressionScenario{
 		document:    "a:\n  x: 3\n  y: 4",
 		expression:  `(.a.x | key) = "meow"`,
 		expected: []string{
-			"D0, P[], (doc)::a:\n    meow: 3\n    y: 4\n",
+			"D0, P[], (!!map)::a:\n    meow: 3\n    y: 4\n",
 		},
 	},
 	{
@@ -75,11 +111,19 @@ var keysOperatorScenarios = []expressionScenario{
 			"D0, P[a x], (!!str)::comment on key\n",
 		},
 	},
+	{
+		description: "Check node is a key",
+		document:    "a: \n  b: [cat]\n  c: frog\n",
+		expression:  `[... | { "p": path | join("."), "isKey": is_key, "tag": tag }]`,
+		expected: []string{
+			expectedIsKey,
+		},
+	},
 }
 
 func TestKeysOperatorScenarios(t *testing.T) {
 	for _, tt := range keysOperatorScenarios {
 		testScenario(t, &tt)
 	}
-	documentScenarios(t, "keys", keysOperatorScenarios)
+	documentOperatorScenarios(t, "keys", keysOperatorScenarios)
 }

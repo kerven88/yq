@@ -1,2 +1,3 @@
-a:
-  include: 'data2.yaml'
+Foo: 3
+apple: 1
+bar: 2

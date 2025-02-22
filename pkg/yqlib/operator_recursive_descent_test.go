@@ -187,7 +187,7 @@ var recursiveDescentOperatorScenarios = []expressionScenario{
 		document:    mergeDocSample,
 		expression:  `.foobar | [..]`,
 		expected: []string{
-			"D0, P[], (!!seq)::- c: foobar_c\n  !!merge <<: *foo\n  thing: foobar_thing\n- foobar_c\n- *foo\n- foobar_thing\n",
+			"D0, P[foobar], (!!seq)::- c: foobar_c\n  !!merge <<: *foo\n  thing: foobar_thing\n- foobar_c\n- *foo\n- foobar_thing\n",
 		},
 	},
 	{
@@ -195,7 +195,7 @@ var recursiveDescentOperatorScenarios = []expressionScenario{
 		document:   mergeDocSample,
 		expression: `.foobar | [...]`,
 		expected: []string{
-			"D0, P[], (!!seq)::- c: foobar_c\n  !!merge <<: *foo\n  thing: foobar_thing\n- c\n- foobar_c\n- !!merge <<\n- *foo\n- thing\n- foobar_thing\n",
+			"D0, P[foobar], (!!seq)::- c: foobar_c\n  !!merge <<: *foo\n  thing: foobar_thing\n- c\n- foobar_c\n- !!merge <<\n- *foo\n- thing\n- foobar_thing\n",
 		},
 	},
 	{
@@ -233,5 +233,5 @@ func TestRecursiveDescentOperatorScenarios(t *testing.T) {
 	for _, tt := range recursiveDescentOperatorScenarios {
 		testScenario(t, &tt)
 	}
-	documentScenarios(t, "recursive-descent-glob", recursiveDescentOperatorScenarios)
+	documentOperatorScenarios(t, "recursive-descent-glob", recursiveDescentOperatorScenarios)
 }

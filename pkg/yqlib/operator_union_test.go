@@ -8,9 +8,17 @@ var unionOperatorScenarios = []expressionScenario{
 	{
 		skipDoc:    true,
 		document:   "{}",
-		expression: `(.a, .b.c) as $x`,
+		expression: `(.a, .b.c) as $x | .`,
 		expected: []string{
-			"D0, P[], (doc)::{}\n",
+			"D0, P[], (!!map)::{}\n",
+		},
+	},
+	{
+		skipDoc:     true,
+		description: "clone test",
+		expression:  `"abc" as $a | [$a, "cat"]`,
+		expected: []string{
+			"D0, P[], (!!seq)::- abc\n- cat\n",
 		},
 	},
 	{
@@ -44,5 +52,5 @@ func TestUnionOperatorScenarios(t *testing.T) {
 	for _, tt := range unionOperatorScenarios {
 		testScenario(t, &tt)
 	}
-	documentScenarios(t, "union", unionOperatorScenarios)
+	documentOperatorScenarios(t, "union", unionOperatorScenarios)
 }

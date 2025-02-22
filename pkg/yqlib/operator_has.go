@@ -3,36 +3,32 @@ package yqlib
 import (
 	"container/list"
 	"strconv"
-
-	yaml "gopkg.in/yaml.v3"
 )
 
 func hasOperator(d *dataTreeNavigator, context Context, expressionNode *ExpressionNode) (Context, error) {
 
-	log.Debugf("-- hasOperation")
+	log.Debugf("hasOperation")
 	var results = list.New()
 
-	rhs, err := d.GetMatchingNodes(context.ReadOnlyClone(), expressionNode.Rhs)
+	rhs, err := d.GetMatchingNodes(context.ReadOnlyClone(), expressionNode.RHS)
 
 	if err != nil {
 		return Context{}, err
 	}
 
 	wantedKey := "null"
-	wanted := &yaml.Node{Tag: "!!null"}
+	wanted := &CandidateNode{Tag: "!!null"}
 	if rhs.MatchingNodes.Len() != 0 {
-		wanted = rhs.MatchingNodes.Front().Value.(*CandidateNode).Node
+		wanted = rhs.MatchingNodes.Front().Value.(*CandidateNode)
 		wantedKey = wanted.Value
 	}
 
 	for el := context.MatchingNodes.Front(); el != nil; el = el.Next() {
 		candidate := el.Value.(*CandidateNode)
 
-		// grab the first value
-		candidateNode := unwrapDoc(candidate.Node)
-		var contents = candidateNode.Content
-		switch candidateNode.Kind {
-		case yaml.MappingNode:
+		var contents = candidate.Content
+		switch candidate.Kind {
+		case MappingNode:
 			candidateHasKey := false
 			for index := 0; index < len(contents) && !candidateHasKey; index = index + 2 {
 				key := contents[index]
@@ -41,10 +37,10 @@ func hasOperator(d *dataTreeNavigator, context Context, expressionNode *Expressi
 				}
 			}
 			results.PushBack(createBooleanCandidate(candidate, candidateHasKey))
-		case yaml.SequenceNode:
+		case SequenceNode:
 			candidateHasKey := false
 			if wanted.Tag == "!!int" {
-				var number, errParsingInt = strconv.ParseInt(wantedKey, 10, 64) // nolint
+				var number, errParsingInt = strconv.ParseInt(wantedKey, 10, 64)
 				if errParsingInt != nil {
 					return Context{}, errParsingInt
 				}

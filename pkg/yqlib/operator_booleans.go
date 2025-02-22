@@ -3,91 +3,79 @@ package yqlib
 import (
 	"container/list"
 	"fmt"
-
-	yaml "gopkg.in/yaml.v3"
+	"strings"
 )
 
-func isTruthyNode(node *yaml.Node) (bool, error) {
-	value := true
+func isTruthyNode(node *CandidateNode) bool {
+	if node == nil {
+		return false
+	}
 	if node.Tag == "!!null" {
-		return false, nil
+		return false
 	}
-	if node.Kind == yaml.ScalarNode && node.Tag == "!!bool" {
-		errDecoding := node.Decode(&value)
-		if errDecoding != nil {
-			return false, errDecoding
-		}
+	if node.Kind == ScalarNode && node.Tag == "!!bool" {
+		// yes/y/true/on
+		return (strings.EqualFold(node.Value, "y") ||
+			strings.EqualFold(node.Value, "yes") ||
+			strings.EqualFold(node.Value, "on") ||
+			strings.EqualFold(node.Value, "true"))
 
 	}
-	return value, nil
+	return true
 }
 
-func isTruthy(c *CandidateNode) (bool, error) {
-	node := unwrapDoc(c.Node)
-	return isTruthyNode(node)
+func getOwner(lhs *CandidateNode, rhs *CandidateNode) *CandidateNode {
+	owner := lhs
+
+	if lhs == nil && rhs == nil {
+		owner = &CandidateNode{}
+	} else if lhs == nil {
+		owner = rhs
+	}
+	return owner
 }
 
-type boolOp func(bool, bool) bool
+func returnRhsTruthy(_ *dataTreeNavigator, _ Context, lhs *CandidateNode, rhs *CandidateNode) (*CandidateNode, error) {
+	owner := getOwner(lhs, rhs)
+	rhsBool := isTruthyNode(rhs)
 
-func performBoolOp(op boolOp) func(d *dataTreeNavigator, context Context, lhs *CandidateNode, rhs *CandidateNode) (*CandidateNode, error) {
-	return func(d *dataTreeNavigator, context Context, lhs *CandidateNode, rhs *CandidateNode) (*CandidateNode, error) {
-		owner := lhs
+	return createBooleanCandidate(owner, rhsBool), nil
+}
 
-		if lhs == nil && rhs == nil {
-			owner = &CandidateNode{}
-		} else if lhs == nil {
-			owner = rhs
+func returnLHSWhen(targetBool bool) func(lhs *CandidateNode) (*CandidateNode, error) {
+	return func(lhs *CandidateNode) (*CandidateNode, error) {
+		var err error
+		var lhsBool bool
+
+		if lhsBool = isTruthyNode(lhs); lhsBool != targetBool {
+			return nil, err
 		}
-
-		var errDecoding error
-		lhsTrue := false
+		owner := &CandidateNode{}
 		if lhs != nil {
-			lhs.Node = unwrapDoc(lhs.Node)
-			lhsTrue, errDecoding = isTruthy(lhs)
-
-			if errDecoding != nil {
-				return nil, errDecoding
-			}
+			owner = lhs
 		}
-		log.Debugf("-- lhsTrue", lhsTrue)
-
-		rhsTrue := false
-		if rhs != nil {
-			rhs.Node = unwrapDoc(rhs.Node)
-			rhsTrue, errDecoding = isTruthy(rhs)
-			if errDecoding != nil {
-				return nil, errDecoding
-			}
-		}
-		log.Debugf("-- rhsTrue", rhsTrue)
-
-		return createBooleanCandidate(owner, op(lhsTrue, rhsTrue)), nil
+		return createBooleanCandidate(owner, targetBool), nil
 	}
 }
 
-func findBoolean(wantBool bool, d *dataTreeNavigator, context Context, expressionNode *ExpressionNode, sequenceNode *yaml.Node) (bool, error) {
+func findBoolean(wantBool bool, d *dataTreeNavigator, context Context, expressionNode *ExpressionNode, sequenceNode *CandidateNode) (bool, error) {
 	for _, node := range sequenceNode.Content {
 
 		if expressionNode != nil {
 			//need to evaluate the expression against the node
-			candidate := &CandidateNode{Node: node}
-			rhs, err := d.GetMatchingNodes(context.SingleReadonlyChildContext(candidate), expressionNode)
+			rhs, err := d.GetMatchingNodes(context.SingleReadonlyChildContext(node), expressionNode)
 			if err != nil {
 				return false, err
 			}
 			if rhs.MatchingNodes.Len() > 0 {
-				node = rhs.MatchingNodes.Front().Value.(*CandidateNode).Node
+				node = rhs.MatchingNodes.Front().Value.(*CandidateNode)
 			} else {
 				// no results found, ignore this entry
 				continue
 			}
 		}
 
-		truthy, err := isTruthyNode(node)
-		if err != nil {
-			return false, err
-		}
-		if truthy == wantBool {
+		if isTruthyNode(node) == wantBool {
 			return true, nil
 		}
 	}
@@ -99,11 +87,10 @@ func allOperator(d *dataTreeNavigator, context Context, expressionNode *Expressi
 
 	for el := context.MatchingNodes.Front(); el != nil; el = el.Next() {
 		candidate := el.Value.(*CandidateNode)
-		candidateNode := unwrapDoc(candidate.Node)
-		if candidateNode.Kind != yaml.SequenceNode {
-			return Context{}, fmt.Errorf("any only supports arrays, was %v", candidateNode.Tag)
+		if candidate.Kind != SequenceNode {
+			return Context{}, fmt.Errorf("all only supports arrays, was %v", candidate.Tag)
 		}
-		booleanResult, err := findBoolean(false, d, context, expressionNode.Rhs, candidateNode)
+		booleanResult, err := findBoolean(false, d, context, expressionNode.RHS, candidate)
 		if err != nil {
 			return Context{}, err
 		}
@@ -118,11 +105,10 @@ func anyOperator(d *dataTreeNavigator, context Context, expressionNode *Expressi
 
 	for el := context.MatchingNodes.Front(); el != nil; el = el.Next() {
 		candidate := el.Value.(*CandidateNode)
-		candidateNode := unwrapDoc(candidate.Node)
-		if candidateNode.Kind != yaml.SequenceNode {
-			return Context{}, fmt.Errorf("any only supports arrays, was %v", candidateNode.Tag)
+		if candidate.Kind != SequenceNode {
+			return Context{}, fmt.Errorf("any only supports arrays, was %v", candidate.Tag)
 		}
-		booleanResult, err := findBoolean(true, d, context, expressionNode.Rhs, candidateNode)
+		booleanResult, err := findBoolean(true, d, context, expressionNode.RHS, candidate)
 		if err != nil {
 			return Context{}, err
 		}
@@ -133,33 +119,31 @@ func anyOperator(d *dataTreeNavigator, context Context, expressionNode *Expressi
 }
 
 func orOperator(d *dataTreeNavigator, context Context, expressionNode *ExpressionNode) (Context, error) {
-	log.Debugf("-- orOp")
-	return crossFunction(d, context.ReadOnlyClone(), expressionNode, performBoolOp(
-		func(b1 bool, b2 bool) bool {
-			log.Debugf("-- peformingOrOp with %v and %v", b1, b2)
-			return b1 || b2
-		}), true)
+	prefs := crossFunctionPreferences{
+		CalcWhenEmpty:  true,
+		Calculation:    returnRhsTruthy,
+		LhsResultValue: returnLHSWhen(true),
+	}
+	return crossFunctionWithPrefs(d, context.ReadOnlyClone(), expressionNode, prefs)
 }
 
 func andOperator(d *dataTreeNavigator, context Context, expressionNode *ExpressionNode) (Context, error) {
-	log.Debugf("-- AndOp")
-	return crossFunction(d, context.ReadOnlyClone(), expressionNode, performBoolOp(
-		func(b1 bool, b2 bool) bool {
-			return b1 && b2
-		}), true)
+	prefs := crossFunctionPreferences{
+		CalcWhenEmpty:  true,
+		Calculation:    returnRhsTruthy,
+		LhsResultValue: returnLHSWhen(false),
+	}
+	return crossFunctionWithPrefs(d, context.ReadOnlyClone(), expressionNode, prefs)
 }
 
-func notOperator(d *dataTreeNavigator, context Context, expressionNode *ExpressionNode) (Context, error) {
-	log.Debugf("-- notOperation")
+func notOperator(_ *dataTreeNavigator, context Context, _ *ExpressionNode) (Context, error) {
+	log.Debugf("notOperation")
 	var results = list.New()
 
 	for el := context.MatchingNodes.Front(); el != nil; el = el.Next() {
 		candidate := el.Value.(*CandidateNode)
 		log.Debug("notOperation checking %v", candidate)
-		truthy, errDecoding := isTruthy(candidate)
-		if errDecoding != nil {
-			return Context{}, errDecoding
-		}
+		truthy := isTruthyNode(candidate)
 		result := createBooleanCandidate(candidate, !truthy)
 		results.PushBack(result)
 	}

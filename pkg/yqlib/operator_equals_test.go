@@ -9,7 +9,14 @@ var equalsOperatorScenarios = []expressionScenario{
 		skipDoc:    true,
 		expression: ".a == .b",
 		expected: []string{
-			"D0, P[], (!!bool)::true\n",
+			"D0, P[a], (!!bool)::true\n",
+		},
+	},
+	{
+		expression: `(.k | length) == 0`,
+		skipDoc:    true,
+		expected: []string{
+			"D0, P[k], (!!bool)::true\n",
 		},
 	},
 	{
@@ -25,7 +32,7 @@ var equalsOperatorScenarios = []expressionScenario{
 		document:   `a: cat`,
 		expression: ".b == .a",
 		expected: []string{
-			"D0, P[a], (!!bool)::false\n",
+			"D0, P[b], (!!bool)::false\n",
 		},
 	},
 	{
@@ -40,9 +47,9 @@ var equalsOperatorScenarios = []expressionScenario{
 	{
 		skipDoc:    true,
 		document:   "{}",
-		expression: "(.a == .b) as $x",
+		expression: "(.a == .b) as $x | .",
 		expected: []string{
-			"D0, P[], (doc)::{}\n",
+			"D0, P[], (!!map)::{}\n",
 		},
 	},
 	{
@@ -50,15 +57,15 @@ var equalsOperatorScenarios = []expressionScenario{
 		document:   "{}",
 		expression: ".a == .b",
 		expected: []string{
-			"D0, P[], (!!bool)::true\n",
+			"D0, P[a], (!!bool)::true\n",
 		},
 	},
 	{
 		skipDoc:    true,
 		document:   "{}",
-		expression: "(.a != .b) as $x",
+		expression: "(.a != .b) as $x | .",
 		expected: []string{
-			"D0, P[], (doc)::{}\n",
+			"D0, P[], (!!map)::{}\n",
 		},
 	},
 	{
@@ -80,7 +87,7 @@ var equalsOperatorScenarios = []expressionScenario{
 		document:   "{a: {b: 10}}",
 		expression: "select(.d == .c)",
 		expected: []string{
-			"D0, P[], (doc)::{a: {b: 10}}\n",
+			"D0, P[], (!!map)::{a: {b: 10}}\n",
 		},
 	},
 	{
@@ -88,7 +95,7 @@ var equalsOperatorScenarios = []expressionScenario{
 		document:   "{a: {b: 10}}",
 		expression: "select(null == .c)",
 		expected: []string{
-			"D0, P[], (doc)::{a: {b: 10}}\n",
+			"D0, P[], (!!map)::{a: {b: 10}}\n",
 		},
 	},
 	{
@@ -130,7 +137,7 @@ var equalsOperatorScenarios = []expressionScenario{
 		},
 	},
 	{
-		description: "Dont match number",
+		description: "Don't match number",
 		document:    `[3, 4, 5]`,
 		expression:  `.[] | (. != 4)`,
 		expected: []string{
@@ -165,11 +172,11 @@ var equalsOperatorScenarios = []expressionScenario{
 		},
 	},
 	{
-		description: "Non exisitant key doesn't equal a value",
+		description: "Non existent key doesn't equal a value",
 		document:    "a: frog",
 		expression:  `select(.b != "thing")`,
 		expected: []string{
-			"D0, P[], (doc)::a: frog\n",
+			"D0, P[], (!!map)::a: frog\n",
 		},
 	},
 	{
@@ -177,7 +184,7 @@ var equalsOperatorScenarios = []expressionScenario{
 		document:    "a: frog",
 		expression:  `select(.b == .c)`,
 		expected: []string{
-			"D0, P[], (doc)::a: frog\n",
+			"D0, P[], (!!map)::a: frog\n",
 		},
 	},
 }
@@ -186,5 +193,5 @@ func TestEqualOperatorScenarios(t *testing.T) {
 	for _, tt := range equalsOperatorScenarios {
 		testScenario(t, &tt)
 	}
-	documentScenarios(t, "equals", equalsOperatorScenarios)
+	documentOperatorScenarios(t, "equals", equalsOperatorScenarios)
 }

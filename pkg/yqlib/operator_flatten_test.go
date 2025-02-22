@@ -11,7 +11,18 @@ var flattenOperatorScenarios = []expressionScenario{
 		document:       `[1, [2], [[3]]]`,
 		expression:     `flatten`,
 		expected: []string{
-			"D0, P[], (doc)::[1, 2, 3]\n",
+			"D0, P[], (!!seq)::[1, 2, 3]\n",
+		},
+	},
+	{
+		description: "Flatten splat",
+		skipDoc:     true,
+		document:    `[1, [2], [[3]]]`,
+		expression:  `flatten[]`,
+		expected: []string{
+			"D0, P[0], (!!int)::1\n",
+			"D0, P[0], (!!int)::2\n",
+			"D0, P[0], (!!int)::3\n",
 		},
 	},
 	{
@@ -19,7 +30,18 @@ var flattenOperatorScenarios = []expressionScenario{
 		document:    `[1, [2], [[3]]]`,
 		expression:  `flatten(1)`,
 		expected: []string{
-			"D0, P[], (doc)::[1, 2, [3]]\n",
+			"D0, P[], (!!seq)::[1, 2, [3]]\n",
+		},
+	},
+	{
+		description: "Flatten with depth and splat",
+		skipDoc:     true,
+		document:    `[1, [2], [[3]]]`,
+		expression:  `flatten(1)[]`,
+		expected: []string{
+			"D0, P[0], (!!int)::1\n",
+			"D0, P[0], (!!int)::2\n",
+			"D0, P[0], (!!seq)::[3]\n",
 		},
 	},
 	{
@@ -27,7 +49,7 @@ var flattenOperatorScenarios = []expressionScenario{
 		document:    `[[]]`,
 		expression:  `flatten`,
 		expected: []string{
-			"D0, P[], (doc)::[]\n",
+			"D0, P[], (!!seq)::[]\n",
 		},
 	},
 	{
@@ -35,7 +57,7 @@ var flattenOperatorScenarios = []expressionScenario{
 		document:    `[{foo: bar}, [{foo: baz}]]`,
 		expression:  `flatten`,
 		expected: []string{
-			"D0, P[], (doc)::[{foo: bar}, {foo: baz}]\n",
+			"D0, P[], (!!seq)::[{foo: bar}, {foo: baz}]\n",
 		},
 	},
 }
@@ -44,5 +66,5 @@ func TestFlattenOperatorScenarios(t *testing.T) {
 	for _, tt := range flattenOperatorScenarios {
 		testScenario(t, &tt)
 	}
-	documentScenarios(t, "flatten", flattenOperatorScenarios)
+	documentOperatorScenarios(t, "flatten", flattenOperatorScenarios)
 }

@@ -16,14 +16,44 @@ var pathTests = []struct {
 	expectedPostFix []interface{}
 }{
 	{
+		`envsubst(ne)`,
+		append(make([]interface{}, 0), "ENVSUBST_NO_EMPTY"),
+		append(make([]interface{}, 0), "ENVSUBST_NO_EMPTY"),
+	},
+	{
+		`envsubst(nu)`,
+		append(make([]interface{}, 0), "ENVSUBST_NO_UNSET"),
+		append(make([]interface{}, 0), "ENVSUBST_NO_UNSET"),
+	},
+	{
+		`envsubst(nu, ne)`,
+		append(make([]interface{}, 0), "ENVSUBST_NO_EMPTY_NO_UNSET"),
+		append(make([]interface{}, 0), "ENVSUBST_NO_EMPTY_NO_UNSET"),
+	},
+	{
+		`envsubst(ne, nu)`,
+		append(make([]interface{}, 0), "ENVSUBST_NO_EMPTY_NO_UNSET"),
+		append(make([]interface{}, 0), "ENVSUBST_NO_EMPTY_NO_UNSET"),
+	},
+	{
+		`[.a, .b]`,
+		append(make([]interface{}, 0), "[", "a", "UNION", "b", "]"),
+		append(make([]interface{}, 0), "a", "b", "UNION", "COLLECT"),
+	},
+	{
+		`.[env(myenv)]`,
+		append(make([]interface{}, 0), "SELF", "TRAVERSE_ARRAY", "[", "ENV", "]"),
+		append(make([]interface{}, 0), "SELF", "ENV", "COLLECT", "TRAVERSE_ARRAY"),
+	},
+	{
 		`.["cat"].["dog"]`,
 		append(make([]interface{}, 0), "SELF", "TRAVERSE_ARRAY", "[", "cat (string)", "]", "SHORT_PIPE", "SELF", "TRAVERSE_ARRAY", "[", "dog (string)", "]"),
-		append(make([]interface{}, 0), "SELF", "cat (string)", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY", "SELF", "dog (string)", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY", "SHORT_PIPE"),
+		append(make([]interface{}, 0), "SELF", "cat (string)", "COLLECT", "TRAVERSE_ARRAY", "SELF", "dog (string)", "COLLECT", "TRAVERSE_ARRAY", "SHORT_PIPE"),
 	},
 	{
 		`.["cat"]`,
 		append(make([]interface{}, 0), "SELF", "TRAVERSE_ARRAY", "[", "cat (string)", "]"),
-		append(make([]interface{}, 0), "SELF", "cat (string)", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY"),
+		append(make([]interface{}, 0), "SELF", "cat (string)", "COLLECT", "TRAVERSE_ARRAY"),
 	},
 	{
 		"with(.a;.=3)",
@@ -53,12 +83,12 @@ var pathTests = []struct {
 	{
 		`.[0]`,
 		append(make([]interface{}, 0), "SELF", "TRAVERSE_ARRAY", "[", "0 (int64)", "]"),
-		append(make([]interface{}, 0), "SELF", "0 (int64)", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY"),
+		append(make([]interface{}, 0), "SELF", "0 (int64)", "COLLECT", "TRAVERSE_ARRAY"),
 	},
 	{
 		`.[0][1]`,
 		append(make([]interface{}, 0), "SELF", "TRAVERSE_ARRAY", "[", "0 (int64)", "]", "TRAVERSE_ARRAY", "[", "1 (int64)", "]"),
-		append(make([]interface{}, 0), "SELF", "0 (int64)", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY", "1 (int64)", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY"),
+		append(make([]interface{}, 0), "SELF", "0 (int64)", "COLLECT", "TRAVERSE_ARRAY", "1 (int64)", "COLLECT", "TRAVERSE_ARRAY"),
 	},
 	{
 		`"\""`,
@@ -68,7 +98,7 @@ var pathTests = []struct {
 	{
 		`[]|join(".")`,
 		append(make([]interface{}, 0), "[", "EMPTY", "]", "PIPE", "JOIN", "(", ". (string)", ")"),
-		append(make([]interface{}, 0), "EMPTY", "COLLECT", "SHORT_PIPE", ". (string)", "JOIN", "PIPE"),
+		append(make([]interface{}, 0), "EMPTY", "COLLECT", ". (string)", "JOIN", "PIPE"),
 	},
 	{
 		`{"cool": .b or .c}`,
@@ -78,7 +108,7 @@ var pathTests = []struct {
 	{
 		`{"cool": []|join(".")}`,
 		append(make([]interface{}, 0), "{", "cool (string)", "CREATE_MAP", "[", "EMPTY", "]", "PIPE", "JOIN", "(", ". (string)", ")", "}"),
-		append(make([]interface{}, 0), "cool (string)", "EMPTY", "COLLECT", "SHORT_PIPE", ". (string)", "JOIN", "PIPE", "CREATE_MAP", "COLLECT_OBJECT", "SHORT_PIPE"),
+		append(make([]interface{}, 0), "cool (string)", "EMPTY", "COLLECT", ". (string)", "JOIN", "PIPE", "CREATE_MAP", "COLLECT_OBJECT", "SHORT_PIPE"),
 	},
 	{
 		`.a as $item ireduce (0; . + $item)`, // note - add code to shuffle reduce to this position for postfix
@@ -93,7 +123,7 @@ var pathTests = []struct {
 	{
 		`[]`,
 		append(make([]interface{}, 0), "[", "EMPTY", "]"),
-		append(make([]interface{}, 0), "EMPTY", "COLLECT", "SHORT_PIPE"),
+		append(make([]interface{}, 0), "EMPTY", "COLLECT"),
 	},
 	{
 		`{}`,
@@ -103,67 +133,67 @@ var pathTests = []struct {
 	{
 		`[{}]`,
 		append(make([]interface{}, 0), "[", "{", "EMPTY", "}", "]"),
-		append(make([]interface{}, 0), "EMPTY", "COLLECT_OBJECT", "SHORT_PIPE", "COLLECT", "SHORT_PIPE"),
+		append(make([]interface{}, 0), "EMPTY", "COLLECT_OBJECT", "SHORT_PIPE", "COLLECT"),
 	},
 	{
 		`.realnames as $names | $names["anon"]`,
 		append(make([]interface{}, 0), "realnames", "ASSIGN_VARIABLE", "GET_VARIABLE", "PIPE", "GET_VARIABLE", "TRAVERSE_ARRAY", "[", "anon (string)", "]"),
-		append(make([]interface{}, 0), "realnames", "GET_VARIABLE", "ASSIGN_VARIABLE", "GET_VARIABLE", "anon (string)", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY", "PIPE"),
+		append(make([]interface{}, 0), "realnames", "GET_VARIABLE", "ASSIGN_VARIABLE", "GET_VARIABLE", "anon (string)", "COLLECT", "TRAVERSE_ARRAY", "PIPE"),
 	},
 	{
 		`.b[.a]`,
 		append(make([]interface{}, 0), "b", "TRAVERSE_ARRAY", "[", "a", "]"),
-		append(make([]interface{}, 0), "b", "a", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY"),
+		append(make([]interface{}, 0), "b", "a", "COLLECT", "TRAVERSE_ARRAY"),
 	},
 	{
 		`.b[.a]?`,
 		append(make([]interface{}, 0), "b", "TRAVERSE_ARRAY", "[", "a", "]"),
-		append(make([]interface{}, 0), "b", "a", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY"),
+		append(make([]interface{}, 0), "b", "a", "COLLECT", "TRAVERSE_ARRAY"),
 	},
 	{
 		`.[]`,
 		append(make([]interface{}, 0), "SELF", "TRAVERSE_ARRAY", "[", "EMPTY", "]"),
-		append(make([]interface{}, 0), "SELF", "EMPTY", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY"),
+		append(make([]interface{}, 0), "SELF", "EMPTY", "COLLECT", "TRAVERSE_ARRAY"),
 	},
 	{
 		`.a[]`,
 		append(make([]interface{}, 0), "a", "TRAVERSE_ARRAY", "[", "EMPTY", "]"),
-		append(make([]interface{}, 0), "a", "EMPTY", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY"),
+		append(make([]interface{}, 0), "a", "EMPTY", "COLLECT", "TRAVERSE_ARRAY"),
 	},
 	{
 		`.a[]?`,
 		append(make([]interface{}, 0), "a", "TRAVERSE_ARRAY", "[", "EMPTY", "]"),
-		append(make([]interface{}, 0), "a", "EMPTY", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY"),
+		append(make([]interface{}, 0), "a", "EMPTY", "COLLECT", "TRAVERSE_ARRAY"),
 	},
 	{
 		`.a.[]`,
 		append(make([]interface{}, 0), "a", "SHORT_PIPE", "SELF", "TRAVERSE_ARRAY", "[", "EMPTY", "]"),
-		append(make([]interface{}, 0), "a", "SELF", "EMPTY", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY", "SHORT_PIPE"),
+		append(make([]interface{}, 0), "a", "SELF", "EMPTY", "COLLECT", "TRAVERSE_ARRAY", "SHORT_PIPE"),
 	},
 	{
 		`.a[0]`,
 		append(make([]interface{}, 0), "a", "TRAVERSE_ARRAY", "[", "0 (int64)", "]"),
-		append(make([]interface{}, 0), "a", "0 (int64)", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY"),
+		append(make([]interface{}, 0), "a", "0 (int64)", "COLLECT", "TRAVERSE_ARRAY"),
 	},
 	{
 		`.a[0]?`,
 		append(make([]interface{}, 0), "a", "TRAVERSE_ARRAY", "[", "0 (int64)", "]"),
-		append(make([]interface{}, 0), "a", "0 (int64)", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY"),
+		append(make([]interface{}, 0), "a", "0 (int64)", "COLLECT", "TRAVERSE_ARRAY"),
 	},
 	{
 		`.a.[0]`,
 		append(make([]interface{}, 0), "a", "SHORT_PIPE", "SELF", "TRAVERSE_ARRAY", "[", "0 (int64)", "]"),
-		append(make([]interface{}, 0), "a", "SELF", "0 (int64)", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY", "SHORT_PIPE"),
+		append(make([]interface{}, 0), "a", "SELF", "0 (int64)", "COLLECT", "TRAVERSE_ARRAY", "SHORT_PIPE"),
 	},
 	{
 		`.a[].c`,
 		append(make([]interface{}, 0), "a", "TRAVERSE_ARRAY", "[", "EMPTY", "]", "SHORT_PIPE", "c"),
-		append(make([]interface{}, 0), "a", "EMPTY", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY", "c", "SHORT_PIPE"),
+		append(make([]interface{}, 0), "a", "EMPTY", "COLLECT", "TRAVERSE_ARRAY", "c", "SHORT_PIPE"),
 	},
 	{
 		`[3]`,
 		append(make([]interface{}, 0), "[", "3 (int64)", "]"),
-		append(make([]interface{}, 0), "3 (int64)", "COLLECT", "SHORT_PIPE"),
+		append(make([]interface{}, 0), "3 (int64)", "COLLECT"),
 	},
 	{
 		`.key.array + .key.array2`,
@@ -183,27 +213,27 @@ var pathTests = []struct {
 	{
 		`.a | .[].b == "apple"`,
 		append(make([]interface{}, 0), "a", "PIPE", "SELF", "TRAVERSE_ARRAY", "[", "EMPTY", "]", "SHORT_PIPE", "b", "EQUALS", "apple (string)"),
-		append(make([]interface{}, 0), "a", "SELF", "EMPTY", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY", "b", "SHORT_PIPE", "apple (string)", "EQUALS", "PIPE"),
+		append(make([]interface{}, 0), "a", "SELF", "EMPTY", "COLLECT", "TRAVERSE_ARRAY", "b", "SHORT_PIPE", "apple (string)", "EQUALS", "PIPE"),
 	},
 	{
 		`(.a | .[].b) == "apple"`,
 		append(make([]interface{}, 0), "(", "a", "PIPE", "SELF", "TRAVERSE_ARRAY", "[", "EMPTY", "]", "SHORT_PIPE", "b", ")", "EQUALS", "apple (string)"),
-		append(make([]interface{}, 0), "a", "SELF", "EMPTY", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY", "b", "SHORT_PIPE", "PIPE", "apple (string)", "EQUALS"),
+		append(make([]interface{}, 0), "a", "SELF", "EMPTY", "COLLECT", "TRAVERSE_ARRAY", "b", "SHORT_PIPE", "PIPE", "apple (string)", "EQUALS"),
 	},
 	{
 		`.[] | select(. == "*at")`,
 		append(make([]interface{}, 0), "SELF", "TRAVERSE_ARRAY", "[", "EMPTY", "]", "PIPE", "SELECT", "(", "SELF", "EQUALS", "*at (string)", ")"),
-		append(make([]interface{}, 0), "SELF", "EMPTY", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY", "SELF", "*at (string)", "EQUALS", "SELECT", "PIPE"),
+		append(make([]interface{}, 0), "SELF", "EMPTY", "COLLECT", "TRAVERSE_ARRAY", "SELF", "*at (string)", "EQUALS", "SELECT", "PIPE"),
 	},
 	{
 		`[true]`,
 		append(make([]interface{}, 0), "[", "true (bool)", "]"),
-		append(make([]interface{}, 0), "true (bool)", "COLLECT", "SHORT_PIPE"),
+		append(make([]interface{}, 0), "true (bool)", "COLLECT"),
 	},
 	{
 		`[true, false]`,
 		append(make([]interface{}, 0), "[", "true (bool)", "UNION", "false (bool)", "]"),
-		append(make([]interface{}, 0), "true (bool)", "false (bool)", "UNION", "COLLECT", "SHORT_PIPE"),
+		append(make([]interface{}, 0), "true (bool)", "false (bool)", "UNION", "COLLECT"),
 	},
 	{
 		`"mike": .a`,
@@ -228,7 +258,7 @@ var pathTests = []struct {
 	{
 		`{.a: .c, .b.[]: .f.g[]}`,
 		append(make([]interface{}, 0), "{", "a", "CREATE_MAP", "c", "UNION", "b", "SHORT_PIPE", "SELF", "TRAVERSE_ARRAY", "[", "EMPTY", "]", "CREATE_MAP", "f", "SHORT_PIPE", "g", "TRAVERSE_ARRAY", "[", "EMPTY", "]", "}"),
-		append(make([]interface{}, 0), "a", "c", "CREATE_MAP", "b", "SELF", "EMPTY", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY", "SHORT_PIPE", "f", "g", "EMPTY", "COLLECT", "SHORT_PIPE", "TRAVERSE_ARRAY", "SHORT_PIPE", "CREATE_MAP", "UNION", "COLLECT_OBJECT", "SHORT_PIPE"),
+		append(make([]interface{}, 0), "a", "c", "CREATE_MAP", "b", "SELF", "EMPTY", "COLLECT", "TRAVERSE_ARRAY", "SHORT_PIPE", "f", "g", "EMPTY", "COLLECT", "TRAVERSE_ARRAY", "SHORT_PIPE", "CREATE_MAP", "UNION", "COLLECT_OBJECT", "SHORT_PIPE"),
 	},
 	{
 		`explode(.a.b)`,
@@ -282,7 +312,7 @@ var pathTests = []struct {
 	},
 }
 
-var tokeniser = newExpressionTokeniser()
+var tokeniser = newParticipleLexer()
 var postFixer = newExpressionPostFixer()
 
 func TestPathParsing(t *testing.T) {
